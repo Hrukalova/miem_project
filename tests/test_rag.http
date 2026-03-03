@@ -1,0 +1,7 @@
+POST http://localhost:8000/chat/stream
+Content-Type: application/json
+
+{
+  "user_id": "student_123",
+  "message": "Как перевестись на другой факультет?"
+}

@@ -1,0 +1,19 @@
+# Окружение Python
+venv/
+.env
+
+# Кэш
+__pycache__/
+*.pyc
+
+# Данные баз данных (ОБЯЗАТЕЛЬНО ИГНОРИРОВАТЬ)
+postgres_data/
+
+# Локальные файлы данных (чтобы не забить лимит GitHub)
+data/*.pdf
+data/*.docx
+data/*.xlsx
+
+# Другое
+.DS_Store
+storage/
