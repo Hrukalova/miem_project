@@ -45,7 +45,7 @@ logger = logging.getLogger("IngestWorker")
 # Загрузка эмбеддинг-модели (BAAI/bge-m3 — мощная многоязычная модель)
 # При первом запуске скачивается ~1.1 GB
 # ---------------------------------------------------------------------------
-EMBEDDER_NAME = settings.EMBEDDER_NAME  # default: "BAAI/bge-m3"
+EMBEDDER_NAME = settings.EMBEDDER_MODEL_NAME
 
 try:
     logger.info(f"⏳ Загружаю эмбеддинг-модель: {EMBEDDER_NAME} ...")
@@ -63,10 +63,10 @@ except Exception as exc:
 # ---------------------------------------------------------------------------
 chunker = SemanticChunker(
     embedder=embedder,
-    t_sim=0.5,        # порог косинусного сходства для semantic split
-    max_tokens=512,   # максимальный размер чанка
-    min_tokens=30,    # не создаём слишком короткие чанки
-    window_size=2,    # скользящее окно в семантическом разбиении
+    t_sim=0.5,
+    max_tokens=settings.CHUNK_SIZE,
+    min_tokens=30,
+    window_size=2,
 )
 
 topic_helper = TopicHelper()
@@ -74,7 +74,7 @@ topic_helper = TopicHelper()
 # Путь к Excel-метаданным (можно переопределить через ENV)
 METADATA_XLSX = os.environ.get(
     "METADATA_XLSX",
-    os.path.join(os.path.dirname(__file__), "..", "..", "data", "metadata.xlsx"),
+    os.path.join(os.path.dirname(__file__), "..", "..", "data", "documents.xlsx"),
 )
 
 def _ensure_topics_loaded():
@@ -231,10 +231,36 @@ async def process_one_document() -> bool:
 
 async def _extract_text(doc: Document) -> str:
     """Определяем способ парсинга по ссылке и типу документа."""
+    from .parsers import (
+        get_content, parse_url, parse_pdf, parse_docx, parse_excel,
+        extract_gdrive_id, get_gdrive_content
+    )
+
     link = doc.raw_content_link or ""
     content_type = (doc.doc_metadata or {}).get("content_type", "html")
+    doc_title_lower = doc.title.lower() if doc.title else ""
 
-    if link.startswith("http"):
+    # 1. Если это ссылка на Google Диск
+    if "drive.google.com" in link:
+        file_id = extract_gdrive_id(link)
+        if not file_id:
+            raise ValueError(f"Не удалось извлечь ID из ссылки Google Drive: {link}")
+
+        logger.info(f"📥 Скачиваю файл с Google Drive (ID: {file_id})")
+        content_bytes = await get_gdrive_content(file_id)
+
+        # Определяем парсер по content_type или расширению в названии
+        if content_type == "pdf" or doc_title_lower.endswith(".pdf"):
+            return parse_pdf(content_bytes)
+        elif content_type == "spreadsheet" or doc_title_lower.endswith(".xlsx"):
+            return parse_excel(content_bytes)
+        elif content_type in ["docx", "doc"] or doc_title_lower.endswith(".docx"):
+            return parse_docx(content_bytes)
+        else:
+            return content_bytes.decode("utf-8", errors="replace")
+
+    # 2. Обычная http/https ссылка
+    elif link.startswith("http"):
         if link.endswith(".pdf") or content_type == "pdf":
             content_bytes = await get_content(link)
             return parse_pdf(content_bytes)
@@ -242,10 +268,10 @@ async def _extract_text(doc: Document) -> str:
             content_bytes = await get_content(link)
             return parse_docx(content_bytes)
         else:
-            # HTML-страница: используем readability (cleanest text)
             return await parse_url(link)
+
+    # 3. Локальный путь к файлу
     elif link:
-        # Локальный файл
         content_bytes = await get_content(link)
         if link.endswith(".pdf"):
             return parse_pdf(content_bytes)
@@ -253,12 +279,13 @@ async def _extract_text(doc: Document) -> str:
             return parse_docx(content_bytes)
         else:
             return content_bytes.decode("utf-8", errors="replace")
+
+    # 4. Текст уже загружен в БД напрямую
     elif doc.content_text:
-        # Текст уже сохранён в БД (например, загружен вручную)
         return doc.content_text
+
     else:
         raise ValueError(f"Нет ссылки и нет cached-текста для документа '{doc.title}'")
-
 
 # ---------------------------------------------------------------------------
 # Главный цикл воркера

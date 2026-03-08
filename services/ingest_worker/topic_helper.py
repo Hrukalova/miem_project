@@ -22,6 +22,7 @@
 from __future__ import annotations
 
 import logging
+import pandas as pd
 from typing import Dict, Optional
 
 logger = logging.getLogger("TopicHelper")
@@ -75,19 +76,22 @@ class TopicHelper:
                 self._topics[topic_id] = {"name": name, "parent_id": parent_id}
         logger.info(f"✅ Загружено {len(self._topics)} топиков.")
 
-    def load_from_records(self, records: list) -> None:
-        """
-        Загружает топики из списка словарей.
-        Каждый словарь: {"topic_id": int, "parent_id": int|None, "name": str}
-        """
-        self._topics = {}
+    def load_from_records(self, records: list[Dict]):
+        """Загружает топики из списка словарей."""
+        self._topics.clear()
         for rec in records:
-            tid = rec.get("topic_id")
-            if tid is None:
+            # Пытаемся взять topic_id, если его нет — берём просто id
+            topic_id = rec.get("topic_id")
+            if pd.isna(topic_id) or topic_id is None:
+                topic_id = rec.get("id")
+
+            if pd.isna(topic_id) or topic_id is None:
                 continue
-            self._topics[int(tid)] = {
+
+            topic_id = int(topic_id)
+            self._topics[topic_id] = {
                 "name": str(rec.get("name", "")).strip(),
-                "parent_id": rec.get("parent_id"),
+                "parent_id": rec.get("parent_id") if pd.notna(rec.get("parent_id")) else None,
             }
         logger.info(f"✅ Загружено {len(self._topics)} топиков.")
 

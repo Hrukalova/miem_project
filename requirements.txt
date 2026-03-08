@@ -17,3 +17,7 @@ pymupdf
 pandas
 openpyxl
 numpy
+openai
+redis[asyncio]
+google-api-python-client
+google-auth

@@ -2,6 +2,8 @@
 venv/
 .env
 
+google_creds.json
+
 # Кэш
 __pycache__/
 *.pyc
