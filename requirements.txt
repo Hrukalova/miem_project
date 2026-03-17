@@ -17,3 +17,5 @@ pymupdf
 pandas
 openpyxl
 numpy
+openai
+redis[asyncio]

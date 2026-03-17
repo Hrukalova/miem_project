@@ -45,7 +45,7 @@ logger = logging.getLogger("IngestWorker")
 # Загрузка эмбеддинг-модели (BAAI/bge-m3 — мощная многоязычная модель)
 # При первом запуске скачивается ~1.1 GB
 # ---------------------------------------------------------------------------
-EMBEDDER_NAME = settings.EMBEDDER_NAME  # default: "BAAI/bge-m3"
+EMBEDDER_NAME = settings.EMBEDDER_MODEL_NAME
 
 try:
     logger.info(f"⏳ Загружаю эмбеддинг-модель: {EMBEDDER_NAME} ...")
@@ -63,10 +63,10 @@ except Exception as exc:
 # ---------------------------------------------------------------------------
 chunker = SemanticChunker(
     embedder=embedder,
-    t_sim=0.5,        # порог косинусного сходства для semantic split
-    max_tokens=512,   # максимальный размер чанка
-    min_tokens=30,    # не создаём слишком короткие чанки
-    window_size=2,    # скользящее окно в семантическом разбиении
+    t_sim=0.5,
+    max_tokens=settings.CHUNK_SIZE,
+    min_tokens=30,
+    window_size=2,
 )
 
 topic_helper = TopicHelper()
