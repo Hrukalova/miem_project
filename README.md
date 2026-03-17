@@ -40,12 +40,18 @@
 ### Chat Service — `services/chat_service/`
 | Компонент | Файл | Статус |
 |---|---|---|
-| Vector search (pgvector `<=>`) | `services/api/retrieval.py` | ✅ |
+| Retrieval Client | `rag_logic.py` | ✅ |
 | Context Construction | `rag_logic.py` | ✅ |
 | Prompt Engineering (системный промпт + история) | `rag_logic.py` | ✅ |
-| LLM Streaming — OpenAI / Ollama / stub | `rag_logic.py` | ✅ |
-| Chat History (Redis, 5 пар, TTL 24ч) | `history.py` | ✅ |
-| SSE-эндпоинт `POST /chat/stream` | `main.py` | ✅ |
+| LLM Streaming (SSE) | `main.py` | ✅ |
+| Chat History (Redis) | `history.py` | ✅ |
+
+### Retrieval Service — `services/retrieval_service/`
+| Компонент | Файл | Статус |
+|---|---|---|
+| Profile Scoped Vector Search (pgvector) | `retrieval.py` | ✅ |
+| Question Vectorization (local embedder) | `main.py` | ✅ |
+| Pure Retrieval API (`POST /retrieve`) | `main.py` | ✅ |
 
 ---
 
@@ -107,8 +113,14 @@ python scripts/init_db.py
 
 ---
 
-### Шаг 4 — Запусти Chat API
+### Шаг 4 — Запусти сервисы
 
+1. **Retrieval Service (Port 8002):**
+```powershell
+python -m uvicorn services.retrieval_service.main:app --reload --port 8002
+```
+
+2. **Chat API (Port 8001):**
 ```powershell
 python -m uvicorn services.chat_service.main:app --reload --port 8001
 ```
@@ -168,21 +180,22 @@ python tests/test_indexer.py
 │   ├── db.py              # SQLAlchemy async engine
 │   └── models.py          # ORM: Document, Chunk (с pgvector)
 ├── services/
-│   ├── api/
-│   │   └── retrieval.py   # pgvector ANN-поиск
+│   ├── retrieval_service/
+│   │   ├── main.py        # Векторизация + API
+│   │   └── retrieval.py   # pgvector поиск с Profile Scoping
 │   ├── chat_service/
 │   │   ├── main.py        # FastAPI: /chat/stream (SSE)
-│   │   ├── rag_logic.py   # Prompt Engineering + LLM streaming
+│   │   ├── rag_logic.py   # Оркестрация RAG + LLM
 │   │   └── history.py     # Redis: история диалогов
 │   └── ingest_worker/
 │       ├── main.py        # Основной pipeline индексации
 │       ├── chunker.py     # SemanticChunker + Header Injection
 │       ├── parsers.py     # HTML / PDF / DOCX парсеры
-│       └── topic_helper.py# Хлебные крошки из иерархии топиков
+│       └── topic_helper.py# Хлебные крошки
 ├── scripts/
 │   └── init_db.py         # Создание схемы БД
 ├── tests/
-│   └── test_indexer.py    # 17 unit-тестов (без зависимостей)
+│   └── test_indexer.py    # Unit-тестов
 ├── docker-compose.yaml
 └── requirements.txt
 ```
